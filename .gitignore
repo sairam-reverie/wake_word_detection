@@ -128,3 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+rough/
+checkpoints/
+*.ipynb
+audio_features.py
+test.py
