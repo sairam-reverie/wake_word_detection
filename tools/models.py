@@ -16,7 +16,7 @@ class SimpleConformer(nn.Module):
         self.classifier = nn.Linear(hidden_dim,num_classes)
         
     def forward(self,batch):
-        samples,labels,lengths = batch
+        samples,labels,lengths,names = batch
         outputs = self.conformer(samples, lengths)
         output_frames,output_lengths = outputs
         max_output,_ = torch.max(output_frames,1)
