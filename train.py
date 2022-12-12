@@ -1,5 +1,5 @@
 from tools.data_utils import get_data_loader
-from tools.metrics import get_metrics,get_preds
+from tools.metrics import get_metrics,get_preds,get_loss
 from tools.models import SimpleConformer
 from config_utils import config
 from pathlib import Path
@@ -16,6 +16,7 @@ wake_word_array_dir = audio_dir / "wake_word_data_array"
 trn_dir = wake_word_array_dir / "trn_set"
 val_dir = wake_word_array_dir / "val_set"
 checkpoint_dir = cur_dir / "checkpoints"
+rough_dir = cur_dir / "rough"
 
 def train(config): 
     model_params = config["model_params"]
@@ -37,24 +38,34 @@ def train(config):
 
     iteration = 0
     for epoch in range(1,epochs+1):
-        print ('\n')
-        print (f'Running epoch {epoch }')
+        print (f'\nRunning epoch {epoch }')
+        all_files = []
+        all_labels = []
+        all_preds = []
         for batch in trn_loader:
             model.train()
-            inputs,labels,lengths = batch
+            
+            inputs,labels,lengths,names = batch
             scores = model(batch)
-            metrics = get_metrics(scores,labels)
-            loss = metrics["loss"]
+            loss = get_loss(scores,labels)
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            
+            labels = labels.tolist()
             iteration += 1
+            all_files += names
+            all_labels += labels
+            all_preds += get_preds(scores)
 
             if iteration % check_every == 0:
-                print (f"Step {iteration} : Training Loss {metrics['loss']}, Accuracy {metrics['accuracy']}, F1_Score {metrics['f1_score']}")
+                print (f"Step {iteration} : Training Loss {loss}")
 
-            if iteration % validate_every == 0:
-                val_metrics= valid_step(model,val_loader)
-                print (f"Step {iteration} : Validation Loss {val_metrics['val_loss']},Validation Accuracy {val_metrics['val_accuracy']},Validation F1_Score {val_metrics['val_f1_score']}")
+
+        trn_metrics = get_metrics(all_preds,all_labels)
+        val_metrics,val_names,val_preds,val_labels= valid_step(model,val_loader,epoch)
+        print (f"Epoch {epoch} : Training metrics {trn_metrics}")
+        print (f"Epoch {epoch} : Validation metrics {val_metrics}")
 
                 
                 
@@ -62,32 +73,28 @@ def train(config):
             chkpt_path = checkpoint_dir /  f'model_epoch_{epoch}.pt'
             torch.save({'epoch': epoch,'model_state': model.state_dict(),'optimizer_state': optimizer.state_dict(),'loss': loss,}, chkpt_path)
 
-def valid_step(model,val_loader):
+def valid_step(model,val_loader,epoch):
     model.eval()
-    val_loss = 0
-    val_accuracy = 0
-    val_f1_score = 0
-    all_labels = []
+    labels = []
 
-    for iteration,batch in enumerate(val_loader):
+    #Special case where entire validation dataset can fit in memory
+    for _,batch in enumerate(val_loader):
         with torch.inference_mode():
+            inputs,labels,lengths,names = batch
             scores = model(batch)
-            inputs,labels,lengths = batch
-            metrics = get_metrics(scores,labels)
-            preds = get_preds(scores).tolist()
-            val_loss += metrics['loss'].item()
+            loss = get_loss(scores,labels).item()
+            preds = get_preds(scores)
+            all_metrics = get_metrics(preds,labels.tolist())
+            val_metrics = dict(loss=loss)
+            val_metrics = {**val_metrics,**all_metrics}
 
-            val_accuracy += metrics['accuracy'].item()
-            val_f1_score += metrics['f1_score'].item()
-    
-    val_loss /= (iteration+1)
-    val_accuracy /= (iteration+1)
-    val_f1_score /= (iteration+1)
-        
-    val_metrics =  dict(val_loss=val_loss,
-                        val_accuracy=val_accuracy,
-                        val_f1_score=val_f1_score)
-    return val_metrics
+    file_name = rough_dir / f"Epoch {epoch} Validation Set.csv"
+    with open(file_name,"w+") as f:
+        f.write(f"File_name,Label,Prediction\n")
+        for (name,label,pred) in zip(names,labels,preds):
+            f.write(f"{name},{label},{pred}\n")
+
+    return val_metrics,names,preds,labels
 
 if __name__ == "__main__":
     train(config)
