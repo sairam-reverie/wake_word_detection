@@ -25,16 +25,17 @@ class AudioClassification_Dataset(Dataset):
         with open(file, 'rb') as f:
             array = np.load(f)
         array = torch.tensor(array).T.to(device)
-        label = int(file.name[0])
-        return (array,label)
+        name = file.name
+        label = int(name[0])
+        return (array,label,name)
 
 def pad_collate(batch):
-    samples, labels = zip(*batch)
+    samples,labels,names = zip(*batch)
     lengths = [sample.shape[0] for sample in samples]
     source_padded = pad_sequence(samples, batch_first=True, padding_value=PAD_ID).to(device)
     labels = torch.tensor(labels).to(device)
     lengths = torch.tensor(lengths).to(device)
-    return source_padded, labels, lengths
+    return source_padded,labels,lengths,names
 
 def get_data_loader(data_dir,batch_size):
     dataset = AudioClassification_Dataset(data_dir)
@@ -55,8 +56,12 @@ if __name__ == "__main__":
     val_set = AudioClassification_Dataset(val_array_dir)
     val_loader = DataLoader(val_set, batch_size = batch_size, collate_fn=pad_collate)
     batch = next(iter(val_loader))
-    samples,labels,lengths = batch
-    print(samples.shape,labels.shape,lengths.shape)
+    samples,labels,lengths,names = batch
+    print(samples.shape)
+    labels = labels.tolist()
+    lengths = lengths.tolist()
+    for bunch in zip(labels,lengths,names):
+        print(bunch)
 
 
     # array,label = val_set[0]
