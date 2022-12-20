@@ -13,23 +13,24 @@ PAD_ID = 0
 
 class AudioClassification_Dataset(Dataset):
 
-    def __init__(self, data_dir):
+    def __init__(self, data_dir,positive_labels):
+        assert isinstance(positive_labels,list), "Pass a list of positive labels"
+        self.positive_labels = positive_labels
         self.samples = [self.load_npy_file(file) for file  in data_dir.iterdir() if file.name.endswith("npy")]
-
+        
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         return self.samples[idx]
     
-    @staticmethod
-    def load_npy_file(file):
+    def load_npy_file(self,file):
         with open(file, 'rb') as f:
             array = np.load(f)
         array = torch.tensor(array)#.T
         array = array.to(device)
         name = file.name
-        label = int(name[0])
+        label = int(name.split("_")[0] in self.positive_labels)
         return (array,label,name)
 
 def get_label(dataset):
@@ -43,8 +44,8 @@ def pad_collate(batch):
     lengths = torch.tensor(lengths).to(device)
     return source_padded.float(),labels,lengths,names
 
-def get_data_loader(data_dir,batch_size,balanced=False):
-    dataset = AudioClassification_Dataset(data_dir)
+def get_data_loader(data_dir,positive_labels,batch_size,balanced=False):
+    dataset = AudioClassification_Dataset(data_dir,positive_labels)
     if balanced:
         sampler=ImbalancedDatasetSampler(dataset,callback_get_label=get_label)
         dataloader = DataLoader(dataset, batch_size = batch_size, collate_fn=pad_collate,sampler=sampler)
@@ -58,20 +59,22 @@ if __name__ == "__main__":
     data_dir = cur_dir.parent / "data"
     audio_dir = data_dir / "audio_data"
     project_dir = audio_dir / "2022-12-07"
-    wake_word_array_dir = audio_dir / "wake_word_consolidated_data_new_features"
+    wake_word_array_dir = audio_dir / "final_data"
     trn_array_dir = wake_word_array_dir / "trn_set"
     val_array_dir = wake_word_array_dir / "val_set"
 
     batch_size = 16
-    val_set = AudioClassification_Dataset(val_array_dir)
+    pos_labels = ["BELLO AG","MAKE A CALL"]
+    val_set = AudioClassification_Dataset(val_array_dir,pos_labels)
     val_len = len(val_set)
     print(val_len)
     batch_size=10
-    val_loader = get_data_loader(val_array_dir,batch_size,balanced=True)
+    val_loader = get_data_loader(val_array_dir,pos_labels,batch_size,balanced=True)
     val_iter = iter(val_loader)
     batch = next(val_iter)
     samples,labels,lengths,names = batch
-    print(samples.dtype)
+    print(labels,names)
+    #print(samples.dtype)
     # num_iterations = (val_len*2)//batch_size
     # val_iter = iter(val_loader)
     # for _ in range(num_iterations):

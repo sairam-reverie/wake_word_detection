@@ -27,7 +27,7 @@ def get_f1_score(preds,labels):
     return f1_score(labels,preds)
 
 def get_confusion_matrix(preds,labels):
-    conf_matrix = confusion_matrix(labels,preds)
+    conf_matrix = confusion_matrix(labels,preds,normalize='true')
     tn, fp, fn, tp = conf_matrix.ravel()
     return (tn, fp, fn, tp)
 
@@ -35,4 +35,4 @@ def get_metrics(preds,labels):
     accuracy = get_accuracy(preds,labels)
     f1_score = get_f1_score(preds,labels)
     tn, fp, fn, tp = get_confusion_matrix(preds,labels)
-    return {"accuracy":accuracy,"f1_score":f1_score,"tn":tn,"fp":fp,"fn":fn,"tp":tp}
+    return accuracy,f1_score,tn,fp,fn,tp
