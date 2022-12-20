@@ -26,7 +26,8 @@ class AudioClassification_Dataset(Dataset):
     def load_npy_file(file):
         with open(file, 'rb') as f:
             array = np.load(f)
-        array = torch.tensor(array).T.to(device)
+        array = torch.tensor(array)#.T
+        array = array.to(device)
         name = file.name
         label = int(name[0])
         return (array,label,name)
@@ -40,7 +41,7 @@ def pad_collate(batch):
     source_padded = pad_sequence(samples, batch_first=True, padding_value=PAD_ID).to(device)
     labels = torch.tensor(labels).to(device)
     lengths = torch.tensor(lengths).to(device)
-    return source_padded,labels,lengths,names
+    return source_padded.float(),labels,lengths,names
 
 def get_data_loader(data_dir,batch_size,balanced=False):
     dataset = AudioClassification_Dataset(data_dir)
@@ -57,7 +58,7 @@ if __name__ == "__main__":
     data_dir = cur_dir.parent / "data"
     audio_dir = data_dir / "audio_data"
     project_dir = audio_dir / "2022-12-07"
-    wake_word_array_dir = audio_dir / "wake_word_data_array"
+    wake_word_array_dir = audio_dir / "wake_word_consolidated_data_new_features"
     trn_array_dir = wake_word_array_dir / "trn_set"
     val_array_dir = wake_word_array_dir / "val_set"
 
@@ -67,11 +68,15 @@ if __name__ == "__main__":
     print(val_len)
     batch_size=10
     val_loader = get_data_loader(val_array_dir,batch_size,balanced=True)
-    num_iterations = (val_len*2)//batch_size
     val_iter = iter(val_loader)
-    for _ in range(num_iterations):
-        batch = next(val_iter)
-        print(batch[1])
+    batch = next(val_iter)
+    samples,labels,lengths,names = batch
+    print(samples.dtype)
+    # num_iterations = (val_len*2)//batch_size
+    # val_iter = iter(val_loader)
+    # for _ in range(num_iterations):
+    #     batch = next(val_iter)
+    #     print(batch[1])
     # #val_loader = DataLoader(val_set, batch_size = batch_size, collate_fn=pad_collate)
     # #labels = 
     # sampler=ImbalancedDatasetSampler(val_set,callback_get_label=get_label)
